@@ -199,6 +199,7 @@ slist_pointer = 0
 output_string = ""
 fName = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 with open(fName, 'a+') as f:
+    f = csv.writer(f, delimiter=',', quoting=csv.QUOTE_ALL)
     while True:
         # If key 'SPACE' start scanning
         if keyboard.is_pressed('g' or 'G'):
