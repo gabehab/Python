@@ -28,6 +28,9 @@ import serial
 import serial.tools.list_ports
 import keyboard
 import time
+import csv
+
+
 
 """
 Change slist tuple to vary analog channel configuration.
@@ -90,7 +93,7 @@ def discovery():
         if ("VID:PID=0683" in p.hwid):
             # Yes!  Dectect and assign the hooked com port
             hooked_port = p.device
-            break
+            break 
 
     if hooked_port:
         print("Found a DATAQ Instruments device on",hooked_port)
@@ -103,7 +106,7 @@ def discovery():
         # Get here if no DATAQ Instruments devices are detected
         print("Please connect a DATAQ Instruments device")
         input("Press ENTER to continue...")
-        return(False)
+        return(False) 
 
 # Sends a passed command string after appending <cr>
 def send_cmd(command):
@@ -184,6 +187,9 @@ print("Press <g> to go, <s> to stop, <r> resets counter channel, and <q> to quit
 slist_pointer = 0
 # This is the constructed output string
 output_string = ""
+import datetime
+
+nFile = open( datetime.datetime.now(), 'a+')
 
 while True:
     # If key 'SPACE' start scanning
@@ -211,6 +217,7 @@ while True:
          keyboard.read_key()
          send_cmd("reset 1")
     while (ser.inWaiting() > (2 * len(slist))):
+        with nFile as f:
          for i in range(len(slist)):
             # The four LSBs of slist determine measurement function
             function = slist[slist_pointer] & 0xf
@@ -262,6 +269,7 @@ while True:
 
             if (slist_pointer + 1) > (len(slist)):
                 # End of a pass through slist items...output, reset, continue
+                nFile.write(output_string)
                 print(output_string.rstrip(", ") + "             ", end="\r") 
                 output_string = ""
                 slist_pointer = 0
