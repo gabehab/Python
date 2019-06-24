@@ -24,6 +24,7 @@ https://www.dataq.com/resources/pdfs/misc/di-2008%20protocol.pdf
 """
 
 
+import datetime
 import serial
 import serial.tools.list_ports
 import keyboard
@@ -31,12 +32,11 @@ import time
 import csv
 
 
-
 """
 Change slist tuple to vary analog channel configuration.
 Refer to the protocol for details.
 """
-slist = [0x0A00,0x0B01,0x1702,0x1303,0x0709,0x000A,0x0008]
+slist = [0x0A00, 0x0B01, 0x1702, 0x1303, 0x0709, 0x000A, 0x0008]
 """ slist Tuple Example Interpretation (from protocol)
 0x0A00 = Channel 0, ±10 V range
 0x0B01 = Channel 1, ±5 V range
@@ -51,20 +51,23 @@ Define analog_ranges tuple to contain an ordered list of analog measurement rang
 This tuple begins with gain code 0 (±500 mV) and ends gain code 0xD (±1 V) and is padded with 0 values
 as place holders for undefined codes (see protocol.)
 """
-analog_ranges = [.5, 0.25, 0.1, .05, .025, .01, 0, 0, 50 ,25, 10, 5, 2.5, 1, 0, 0]
+analog_ranges = [.5, 0.25, 0.1, .05, .025, .01,
+                 0, 0, 50, 25, 10, 5, 2.5, 1, 0, 0]
 
 """
 Define a tuple that contains an ordered list of rate measurement ranges supported by the DI-2008. 
 The first item in the list is the lowest gain code (e.g. 50 kHz range = gain code 1).
 """
-rate_ranges = tuple((50000,20000,10000,5000,2000,1000,500,200,100,50,20,10))
+rate_ranges = tuple((50000, 20000, 10000, 5000, 2000,
+                     1000, 500, 200, 100, 50, 20, 10))
 
 """
 m and b TC scaling constants in TC type order: B, E, J, K, N, R, S, T
 See protocol
 """
-tc_m = [0.023956,0.018311,0.021515,0.023987,0.022888,0.02774,0.02774,0.009155]
-tc_b = [1035,400,495,586,550,859,859,100]
+tc_m = [0.023956, 0.018311, 0.021515, 0.023987,
+        0.022888, 0.02774, 0.02774, 0.009155]
+tc_b = [1035, 400, 495, 586, 550, 859, 859, 100]
 
 
 """
@@ -75,28 +78,30 @@ slist contents.
 """
 range_table = list(())
 
-# Define flag to indicate if acquiring is active 
+# Define flag to indicate if acquiring is active
 acquiring = False
 
-ser=serial.Serial()
+ser = serial.Serial()
 
 
 """ Discover DATAQ Instruments devices and models.  Note that if multiple devices are connected, only the 
 device discovered first is used. We leave it to you to ensure that the device is a model DI-2008 """
+
+
 def discovery():
     # Get a list of active com ports to scan for possible DATAQ Instruments devices
     available_ports = list(serial.tools.list_ports.comports())
     # Will eventually hold the com port of the detected device, if any
-    hooked_port = "" 
+    hooked_port = ""
     for p in available_ports:
         # Do we have a DATAQ Instruments device?
         if ("VID:PID=0683" in p.hwid):
             # Yes!  Dectect and assign the hooked com port
             hooked_port = p.device
-            break 
+            break
 
     if hooked_port:
-        print("Found a DATAQ Instruments device on",hooked_port)
+        print("Found a DATAQ Instruments device on", hooked_port)
         ser.timeout = 0
         ser.port = hooked_port
         ser.baudrate = '115200'
@@ -106,9 +111,11 @@ def discovery():
         # Get here if no DATAQ Instruments devices are detected
         print("Please connect a DATAQ Instruments device")
         input("Press ENTER to continue...")
-        return(False) 
+        return(False)
 
 # Sends a passed command string after appending <cr>
+
+
 def send_cmd(command):
     ser.write((command+'\r').encode())
     time.sleep(.1)
@@ -126,15 +133,17 @@ def send_cmd(command):
                     except:
                         continue
                 if s != "":
-                    print (s)
+                    print(s)
                     break
 
 # Configure the instrment's scan list
+
+
 def config_scn_lst():
     # Scan list position must start with 0 and increment sequentially
-    position = 0 
+    position = 0
     for item in slist:
-        send_cmd("slist "+ str(position ) + " " + str(item))
+        send_cmd("slist " + str(position) + " " + str(item))
         position += 1
         # Update the Range table
         if (item & 0xf < 8) and (item & 0x1000 == 0):
@@ -146,9 +155,9 @@ def config_scn_lst():
             range_table.append(0)
 
         elif item & 0xf == 8:
-            # This is a dig in channel. No measurement range support. 
+            # This is a dig in channel. No measurement range support.
             # Append 0 as a placeholder
-            range_table.append(0) 
+            range_table.append(0)
 
         elif item & 0xf == 9:
             """
@@ -156,7 +165,7 @@ def config_scn_lst():
             Rate ranges begin with 1, so subtract 1 to maintain zero-based index
             in the rate_ranges tuple
             """
-            range_table.append(rate_ranges[(item >> 8)-1]) 
+            range_table.append(rate_ranges[(item >> 8)-1])
 
         else:
             """
@@ -164,6 +173,7 @@ def config_scn_lst():
             Append 0 as a placeholder
             """
             range_table.append(0)
+
 
 while discovery() == False:
     discovery()
@@ -179,7 +189,7 @@ send_cmd("dec 20")
 send_cmd("srate 4")
 print("")
 print("Ready to acquire...")
-print ("")
+print("")
 print("Press <g> to go, <s> to stop, <r> resets counter channel, and <q> to quit:")
 
 # This is the slist position pointer. Ranges from 0 (first position)
@@ -187,91 +197,96 @@ print("Press <g> to go, <s> to stop, <r> resets counter channel, and <q> to quit
 slist_pointer = 0
 # This is the constructed output string
 output_string = ""
-import datetime
+fName = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+with open(fName, 'a+') as f:
+    while True:
+        # If key 'SPACE' start scanning
+        if keyboard.is_pressed('g' or 'G'):
+            keyboard.read_key()
+            acquiring = True
+            send_cmd("start")
+        # If key 'esc' stop scanning
+        if keyboard.is_pressed('s' or 'S'):
+            keyboard.read_key()
+            send_cmd("stop")
+            time.sleep(1)
+            # ser.flushInput()
+            print("")
+            print("stopped")
+            ser.flushInput()
+            acquiring = False
+        # If key 'q' exit
+        if keyboard.is_pressed('q' or 'Q'):
+            keyboard.read_key()
+            send_cmd("stop")
+            break
+            # If key 'r' reset counter
+        if keyboard.is_pressed('r' or 'R'):
+            keyboard.read_key()
+            send_cmd("reset 1")
+        while (ser.inWaiting() > (2 * len(slist))):
 
-nFile = open( datetime.datetime.now(), 'a+')
-
-while True:
-    # If key 'SPACE' start scanning
-    if keyboard.is_pressed('g' or  'G'):
-         keyboard.read_key()
-         acquiring = True
-         send_cmd("start")
-    # If key 'esc' stop scanning
-    if keyboard.is_pressed('s' or 'S'):
-         keyboard.read_key()
-         send_cmd("stop")
-         time.sleep(1)
-         #ser.flushInput()
-         print ("")
-         print ("stopped")
-         ser.flushInput()
-         acquiring = False
-    # If key 'q' exit 
-    if keyboard.is_pressed('q' or 'Q'):
-         keyboard.read_key()
-         send_cmd("stop")
-         break
-        # If key 'r' reset counter 
-    if keyboard.is_pressed('r' or 'R'):
-         keyboard.read_key()
-         send_cmd("reset 1")
-    while (ser.inWaiting() > (2 * len(slist))):
-        with nFile as f:
-         for i in range(len(slist)):
-            # The four LSBs of slist determine measurement function
-            function = slist[slist_pointer] & 0xf
-            mode_bit = slist[slist_pointer] & 0x1000
-            # Always two bytes per sample...read them
-            bytes = ser.read(2)
-            if (function < 8) and (not(mode_bit)):
-                # Working with a Voltage input channel. Scale accordingly.
-                result = range_table[slist_pointer] * int.from_bytes(bytes,byteorder='little', signed=True) / 32768
-                output_string = output_string + "{: 3.3f}, ".format(result)
-            elif (function < 8) and (mode_bit):
-                """
-                Working with a TC channel.
-                Convert to temperature if no errors.
-                First, test for TC error conditions.
-                """
-                result = int.from_bytes(bytes,byteorder='little', signed=True)
-                if result == 32767:
-                    output_string = output_string + "cjc error, "
-                        
-                elif result == -32768:
-                    output_string = output_string + "open, "
-                        
-                else:
-                    # Get here if no errors, so isolate TC type
-                    tc_type = slist[slist_pointer] & 0x0700
-                    # Move TC type into 3 LSBs to form an index we'll use to select m & b scaling constants
-                    tc_type = tc_type >> 8
-                    result = tc_m[tc_type] * result + tc_b[tc_type]
+            for i in range(len(slist)):
+                # The four LSBs of slist determine measurement function
+                function = slist[slist_pointer] & 0xf
+                mode_bit = slist[slist_pointer] & 0x1000
+                # Always two bytes per sample...read them
+                bytes = ser.read(2)
+                if (function < 8) and (not(mode_bit)):
+                    # Working with a Voltage input channel. Scale accordingly.
+                    result = range_table[slist_pointer] * int.from_bytes(
+                        bytes, byteorder='little', signed=True) / 32768
                     output_string = output_string + "{: 3.3f}, ".format(result)
+                elif (function < 8) and (mode_bit):
+                    """
+                    Working with a TC channel.
+                    Convert to temperature if no errors.
+                    First, test for TC error conditions.
+                    """
+                    result = int.from_bytes(
+                        bytes, byteorder='little', signed=True)
+                    if result == 32767:
+                        output_string = output_string + "cjc error, "
 
-            elif function == 8:
-                # Working with the Digital input channel 
-                result = (int.from_bytes(bytes,byteorder='big', signed=False)) & (0x007f)
-                output_string = output_string + "{: 3d}, ".format(result)
+                    elif result == -32768:
+                        output_string = output_string + "open, "
 
-            elif function == 9:
-                # Working with the Rate input channel
-                result = (int.from_bytes(bytes,byteorder='little', signed=True) + 32768) / 65535 * (range_table[slist_pointer])
-                output_string = output_string + "{: 3.1f}, ".format(result)
+                    else:
+                        # Get here if no errors, so isolate TC type
+                        tc_type = slist[slist_pointer] & 0x0700
+                        # Move TC type into 3 LSBs to form an index we'll use to select m & b scaling constants
+                        tc_type = tc_type >> 8
+                        result = tc_m[tc_type] * result + tc_b[tc_type]
+                        output_string = output_string + \
+                            "{: 3.3f}, ".format(result)
 
-            else:
-                # Working with the Counter input channel
-                result = (int.from_bytes(bytes,byteorder='little', signed=True)) + 32768
-                output_string = output_string + "{: 1d}, ".format(result)
+                elif function == 8:
+                    # Working with the Digital input channel
+                    result = (int.from_bytes(
+                        bytes, byteorder='big', signed=False)) & (0x007f)
+                    output_string = output_string + "{: 3d}, ".format(result)
 
-            # Get the next position in slist
-            slist_pointer += 1
+                elif function == 9:
+                    # Working with the Rate input channel
+                    result = (int.from_bytes(bytes, byteorder='little',
+                                             signed=True) + 32768) / 65535 * (range_table[slist_pointer])
+                    output_string = output_string + "{: 3.1f}, ".format(result)
 
-            if (slist_pointer + 1) > (len(slist)):
-                # End of a pass through slist items...output, reset, continue
-                nFile.write(output_string)
-                print(output_string.rstrip(", ") + "             ", end="\r") 
-                output_string = ""
-                slist_pointer = 0
+                else:
+                    # Working with the Counter input channel
+                    result = (int.from_bytes(
+                        bytes, byteorder='little', signed=True)) + 32768
+                    output_string = output_string + "{: 1d}, ".format(result)
+
+                # Get the next position in slist
+                slist_pointer += 1
+
+                if (slist_pointer + 1) > (len(slist)):
+                    # End of a pass through slist items...output, reset, continue
+                    d = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    f.writerow([d, output_string])
+                    print(output_string.rstrip(", ") +
+                          "             ", end="\r")
+                    output_string = ""
+                    slist_pointer = 0
 SystemExit
-
